@@ -1,0 +1,184 @@
+library(tidyverse)
+library(cowplot)
+library(SingleCellExperiment)
+library(Seurat)
+library(tidyverse)
+library(Matrix)
+library(scales)
+library(cowplot)
+library(RCurl)
+library(dplyr)
+library(Matrix.utils)
+library(ggplot2)
+library(dplyr)
+library("reshape2")
+library(pheatmap)
+library(ggforce)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+
+load("R_data/Ptprc_or_Itgam_0/final/decontx_clustering_res.0.6.RData")
+mono <- subset(reassign, idents = "Monocytes") # n = 569
+DimPlot(object = mono, reduction = "umap", label = TRUE, label.size = 3, repel = TRUE, pt.size = 0.2, alpha = 0.5)
+
+# Define Ccr2+ cells
+mono$subtype <- "Unassigned"
+mono$subtype[mono@assays$RNA@data["Ccr2", ] > 0] <- "Ccr2+"
+DimPlot(mono, group.by = "subtype", label = TRUE, label.size = 3, repel = TRUE, pt.size = 0.2, alpha = 0.5)
+
+Idents(mono) <- "subtype"
+
+# Count by sample
+n_cells <- FetchData(mono, vars = c("subtype", "sample_name")) %>%
+  dplyr::count(subtype, sample_name)
+ggplot(n_cells, aes(x=subtype, y=n, fill=sample_name)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_text(aes(label=n), vjust = -.2, position=position_dodge(1))
+
+# Stacked bar chart
+df <- data.frame(
+  group = rep(c("1_mock", "2_6dpi", "3_30dpi", "4_100dpi"), each = 2),
+  subpopulation = rep(c("1_Ccr2+", "2_Ccr2-"), times = 4),
+  count = c(1.19, 0.90, 3.97, 2.09, 1.61, 1.08, 1.01, 0.84)
+)
+ggplot(df, aes(x = group, y = count, fill = subpopulation)) +
+  geom_bar(stat = "identity") +
+  labs(y = "Cell Count", x = "Sample") +
+  theme_minimal()
+
+# Markers for Ccr2+ monocytes
+mono.marker <- FindMarkers(mono, ident.1 = "Ccr2+", ident.2 = "Unassigned", verbose = FALSE)
+mono.marker_1 <- mono.marker %>% filter(avg_log2FC >= 1, p_val_adj <= 0.01)
+mono.marker_2 <- mono.marker %>% filter(avg_log2FC <= -1, p_val_adj <= 0.01)
+mono.marker <- rbind(mono.marker_1, mono.marker_2)
+write.csv(mono.marker, "R_data/Ptprc_or_Itgam_0/final/mono/Ccr2_markers.csv", row.names = TRUE)
+
+# VlnPlot of important genes
+features <- c("Ccr2", "Sell", "Lyz1", "Lyz2", "Mpeg1", 
+              "Spn", "Itgal", "Itgax", "Cd36","Fcgr4", "Pparg")
+VlnPlot(mono, features = features, stack = TRUE)
+
+# VlnPlot of DIM marker genes
+features <- c("Icam1", "Cd83", "Btg2", "Adora2b", "Il1a", 
+              "Spp1", "Syngr1", "Csf1", "Il1b")
+VlnPlot(mono, features = features, stack = TRUE)
+
+# Single-cell-level DEG analysis using Seurat (based on the non-parametric Wilcoxon rank sum test)
+Idents(mono) <- "dpi"
+d6 <- FindMarkers(mono, ident.1 = "6", ident.2 = "0", verbose = FALSE)
+deg6_1 <- d6 %>% filter(avg_log2FC >= 1, p_val_adj <= 0.01, pct.1 > 0.2)
+deg6_2 <- d6 %>% filter(avg_log2FC <= -1, p_val_adj <= 0.01, pct.2 > 0.2)
+deg6 <- rbind(deg6_1, deg6_2)
+write.csv(deg6, "R_data/Ptprc_or_Itgam_0/final/mono/mono_6_seurat.csv")
+
+d30 <- FindMarkers(mono, ident.1 = "30", ident.2 = "0", verbose = FALSE)
+deg30_1 <- d30 %>% filter(avg_log2FC >= 1, p_val_adj <= 0.01, pct.1 > 0.2)
+deg30_2 <- d30 %>% filter(avg_log2FC <= -1, p_val_adj <= 0.01, pct.2 > 0.2)
+deg30 <- rbind(deg30_1, deg30_2)
+write.csv(deg30, "R_data/Ptprc_or_Itgam_0/final/mono/mono_30_seurat.csv")
+
+d100 <- FindMarkers(mono, ident.1 = "100", ident.2 = "0", verbose = FALSE)
+deg100_1 <- d100 %>% filter(avg_log2FC >= 1, p_val_adj <= 0.01, pct.1 > 0.2)
+deg100_2 <- d100 %>% filter(avg_log2FC <= -1, p_val_adj <= 0.01, pct.2 > 0.2)
+deg100 <- rbind(deg100_1, deg100_2)
+write.csv(deg100, "R_data/Ptprc_or_Itgam_0/final/mono/mono_100_seurat.csv")
+
+# Plot g:Profiler results
+gprofiler <- read_excel("R_data/Ptprc_or_Itgam_0/final/mono/6.up_gProfiler.xlsx")
+gprofiler <- gprofiler[gprofiler$source == "GO:BP", ]
+
+selected_terms <- c("innate immune response", 
+                    "response to virus",
+                    "defense response to virus",
+                    "immune system process",
+                    "activation of innate immune response",
+                    "response to cytokine",
+                    "activation of immune response",
+                    "cellular response to interferon-beta",
+                    "interferon-mediated signaling pathway",
+                    "pattern recognition receptor signaling pathway",
+                    "negative regulation of viral process",
+                    "type I interferon production",
+                    "cellular response to type II interferon",
+                    "regulation of inflammatory response",
+                    "pyroptotic inflammatory response",
+                    "regulation of interferon-alpha production",
+                    "MDA-5 signaling pathway",
+                    "inflammasome-mediated signaling pathway")
+filtered_terms <- gprofiler %>% filter(term_name %in% selected_terms)
+filtered_terms <- filtered_terms %>% mutate(gene_ratio = intersection_size / term_size)
+
+ggplot(filtered_terms, aes(x = gene_ratio, 
+                           y = reorder(term_name, gene_ratio), 
+                           size = intersection_size, 
+                           color = negative_log10_of_adjusted_p_value)) +
+  geom_point() +
+  scale_color_gradient(low = "blue", high = "red") +
+  labs(x = "Gene Ratio", y = NULL, size = "Gene Count", color = "-log10(FDR)", title = "Selected GO:BP Pathways Enriched") +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.major.y = element_blank())
+
+ggplot(filtered_terms, aes(x = reorder(term_name, negative_log10_of_adjusted_p_value), y = negative_log10_of_adjusted_p_value, fill = source)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(x = "Term", y = "-log10(FDR)") +
+  theme_minimal()
+
+# Dotplot for specific genes
+# Genes in response to virus
+genes <- c("Gbp2","Zbp1","Irf7","Nlrc5","Ifi27l2a","Oas3","Stat1",
+           "Irgm1","Oasl2","Oas1a","Isg15","Oas2","Dhx58","Fgl2",
+           "Gbp5","Ifih1","Ifit3","Nmi","Usp18","Il1b","Rsad2")
+VlnPlot(mono, features = genes, stack = TRUE)
+
+d6$gene=row.names(d6)
+d6$dpi="1_6dpi"
+d30$gene=row.names(d30)
+d30$dpi="2_30dpi"
+d100$gene=row.names(d100)
+d100$dpi="3_100dpi"
+
+d6_d <- d6[d6$gene %in% genes, ]
+d30_d <- d30[d30$gene %in% genes, ]
+d100_d <- d100[d100$gene %in% genes, ]
+merge_d=rbind(d6_d, d30_d, d100_d)
+
+ggplot(merge_d, aes(
+  x = dpi, 
+  y = gene, 
+  size = pct.1, 
+  fill = avg_log2FC)
+) +
+  geom_point(shape = 21, color = "black", stroke = 0.25) +
+  scale_fill_gradient2(low = "#000000", mid = "#F6DED8", high = "#C02727", midpoint = 1, limits = c(-0.9, 2.6) ) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.major.y = element_blank())
+
+# Genes in inflammatory response
+genes <- c("Gbp2", "Zbp1", "Gbp3", "Irgm1", "Ifi35", 
+           "Calhm6", "Gbp5", "Nmi", "Snap23", 
+           "Usp18", "Il1b", "Casp4")
+VlnPlot(mono, features = genes, stack = TRUE)
+
+d6$gene=row.names(d6)
+d6$dpi="1_6dpi"
+d30$gene=row.names(d30)
+d30$dpi="2_30dpi"
+d100$gene=row.names(d100)
+d100$dpi="3_100dpi"
+
+d6_d <- d6[d6$gene %in% genes, ]
+d30_d <- d30[d30$gene %in% genes, ]
+d100_d <- d100[d100$gene %in% genes, ]
+merge_d=rbind(d6_d, d30_d, d100_d)
+
+ggplot(merge_d, aes(
+  x = dpi, 
+  y = gene, 
+  size = pct.1, 
+  fill = avg_log2FC)
+) +
+  geom_point(shape = 21, color = "black", stroke = 0.25) +
+  scale_fill_gradient2(low = "#000000", mid = "#F6DED8", high = "#C02727", midpoint = 1, limits = c(-0.5, 2.6) ) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.major.y = element_blank())
