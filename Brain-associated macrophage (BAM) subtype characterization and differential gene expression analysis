@@ -1,0 +1,186 @@
+library(tidyverse)
+library(cowplot)
+library(SingleCellExperiment)
+library(Seurat)
+library(tidyverse)
+library(Matrix)
+library(scales)
+library(cowplot)
+library(RCurl)
+library(dplyr)
+library(Matrix.utils)
+library(ggplot2)
+library(dplyr)
+library("reshape2")
+library(pheatmap)
+library(ggforce)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+library(ggcorrplot)
+library(rstatix)
+library(ggpubr)
+library(readxl)
+
+load("R_data/Ptprc_or_Itgam_0/final/decontx_clustering_res.0.6.RData")
+BAMs <- subset(reassign, idents = c("MHCII hi BAMs", "MHCII lo BAMs"))
+DimPlot(object = BAMs, reduction = "umap", label = TRUE, label.size = 3, repel = TRUE, pt.size = 0.2, alpha = 0.5)
+
+# Universal BAM signature genes
+FeaturePlot(reassign, features = c("Mrc1", "Pf4", "Ms4a7", "Apoe", "Lyz2"), order = TRUE,  pt.size = 0.2, alpha = 0.5)
+
+# Two BAM populations
+FeaturePlot(BAMs, features = c("Mrc1", "H2-Aa"), order = TRUE,  pt.size = 0.2, alpha = 0.5)
+
+# Tissue-specific signature genes
+VlnPlot(BAMs, features = c("Clec4n", "Clec10a", "Ccl7", "Cd209f"), stack = TRUE) # MHCIIlo meningeal BAMs
+VlnPlot(BAMs, features = c("Lgals3", "Ccr2", "Vim", "Lsp1"), stack = TRUE) # MHCIIhi meningeal BAMs
+VlnPlot(BAMs, features = c("Bst2")) # Perivascular BAMs
+VlnPlot(BAMs, features = c("Lyve1", "P2rx7", "Egfl7", "Ccr1"), stack = TRUE) # SD-BAMs
+VlnPlot(BAMs, features = c("Irf7", "Crip1", "Ccl9"), stack = TRUE) # D-BAMs
+VlnPlot(BAMs, features = c("Ccnd2", "Col14a1", "Lilra5"), stack = TRUE) # CP-BAMs
+VlnPlot(BAMs, features = c("Cst7", "St8sia6", "Lpl", "Arg1")) # CPepi-BAMs
+
+feature <- c("Clec4n", "Clec10a", "Ccl7", "Cd209f", "Lgals3", "Ccr2", "Vim", "Lsp1", "Ccnd2", "Col14a1", "Lilra5", "Cst7", "St8sia6", "Lpl")
+VlnPlot(BAMs, features = feature, stack = TRUE)
+
+# Markers for MHCIIhi and lo BAMs
+BAMs.marker <- FindMarkers(BAMs, ident.1 = "MHCII hi BAMs", ident.2 = "MHCII lo BAMs", verbose = FALSE)
+BAMs.marker <- BAMs.marker %>% filter(avg_log2FC >= 1, p_val_adj <= 0.01, pct.1 >= 0.2)
+write.csv(BAMs.marker, "R_data/Ptprc_or_Itgam_0/final/BAMs/MHCIIhi_markers.csv", row.names = TRUE)
+BAMs.marker <- FindMarkers(BAMs, ident.1 = "MHCII lo BAMs", ident.2 = "MHCII hi BAMs", verbose = FALSE)
+BAMs.marker <- BAMs.marker %>% filter(avg_log2FC >= 1, p_val_adj <= 0.01, pct.1 >= 0.2)
+write.csv(BAMs.marker, "R_data/Ptprc_or_Itgam_0/final/BAMs/MHCIIlo_markers.csv", row.names = TRUE)
+
+# VlnPlot of MHCIIhi and lo markers
+feature <- c("H2-Ab1", "H2-Aa", "H2-Eb1", "Cd74", "Ciita", 
+             "Il1b", "Icam1", "Fcgr4", "Plcg2","Ptger4", "Zbp1", "Gbp3",
+             "Ccl4", "Cxcl14", "Cxcl16", "Ccr2", "Ccr5", "Cxcr4",
+             "Ccl2", "Ccl7", "Ccl24", "Ccr1",
+             "Mrc1", "Cd163", "Gas6", "Stab1", "Cfh", "Maf")
+VlnPlot(BAMs, features = feature, stack = TRUE,pt.size = 0) + 
+  theme(strip.text.y = element_text(angle = 0))
+
+# Stacked bar chart of MHCII hi and lo BAMs
+df <- data.frame(
+  group = rep(c("1_mock", "2_6dpi", "3_30dpi", "4_100dpi"), each = 2),
+  subpopulation = rep(c("MHCIIlo", "MHCIIhi"), times = 4),
+  count = c(3.3, 3.4, 4.1, 2.4, 4.7, 3.9, 3.8, 3.6))
+ggplot(df, aes(x = group, y = count, fill = subpopulation)) +
+  geom_bar(stat = "identity") +
+  labs(y = "Cell Count", x = "Sample") +
+  theme_minimal()
+
+# Monocyte-derived BAMhi cells
+BAMhi <- subset(BAMs, idents = "MHCII hi BAMs")
+
+# Define Ccr2+ cells
+ridge_plot <- RidgePlot(object = BAMhi, assay = "RNA", features = c("Ccr2"), layer = "counts")
+ridge_plot + scale_x_continuous(limits = c(0, 20))
+BAMhi$subtype <- "Unassigned"
+BAMhi$subtype[BAMhi@assays$RNA@data["Ccr2", ] > 0 ] <- "Ccr2+"
+
+n_cells <- FetchData(BAMhi, vars = c("subtype", "sample_name")) %>%
+  dplyr::count(subtype, sample_name)
+ggplot(n_cells, aes(x=subtype, y=n, fill=sample_name)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_text(aes(label=n), vjust = -.2, position=position_dodge(1))
+
+# Pie chart for MHCIIhi
+# MHCIIhi mock
+cell_counts <- c(Ccr2ps = 111, Ccr2ng = 166)
+# MHCIIhi 6 dpi
+cell_counts <- c(Ccr2ps = 57, Ccr2ng = 56)
+# MHCIIhi 30 dpi
+cell_counts <- c(Ccr2ps = 172, Ccr2ng = 107)
+# MHCIIhi 100 dpi
+cell_counts <- c(Ccr2ps = 83, Ccr2ng = 68)
+
+df <- data.frame(Comp = names(cell_counts), Count = as.numeric(cell_counts))
+ggplot(df, aes(x = "", y = Count, fill = Comp)) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar("y") +
+  theme_void() +
+  theme(legend.position = "right")
+
+# Markers for Ccr2+ BAMhi BAMs
+Idents(BAMhi) <- "subtype"
+marker_Ccr2ps <- FindMarkers(BAMhi, ident.1 = "Ccr2+", ident.2 = "Unassigned", verbose = FALSE)
+marker_Ccr2ps <- marker_Ccr2ps %>% filter(avg_log2FC > 1, p_val_adj <= 0.01)
+write.csv(marker_Ccr2ps, "R_data/Ptprc_or_Itgam_0/final/BAMs/marker_Ccr2ps.csv")
+marker_Ccr2ng <- FindMarkers(BAMhi, ident.1 = "Unassigned", ident.2 = "Ccr2+", verbose = FALSE)
+marker_Ccr2ng <- marker_Ccr2ng %>% filter(avg_log2FC > 1, p_val_adj <= 0.01)
+write.csv(marker_Ccr2ng, "R_data/Ptprc_or_Itgam_0/final/BAMs/marker_Ccr2ng.csv")
+feature <- c("Ms4a7", "Pla2g7", "Stab1", "Vcam1", "Ctla2b", "C5ar1", "Ms4a14", "Cp", "Ninj1",
+             "Lsp1", "Alcam", "Vim", "Mgl2", "Clec4b1", "Crip1", "Ahnak","Tmsb10", "Capg", "Lgals3", "Adgre5", "Ccl9")
+VlnPlot(BAMhi, features = feature, group.by = "subtype", stack = TRUE,  pt.size = 0) + 
+  theme(strip.text.y = element_text(angle = 0))
+
+# Compare Ccr2+ BAMs and monocytes
+Ccr2all <- subset(reassign, ident = c("Monocytes", "MHCII hi BAMs"))
+Ccr2all$subtype <- "Unassigned"
+Ccr2all$subtype[Ccr2all@assays$RNA@data["Ccr2", ] > 0] <- "Ccr2+"
+Idents(Ccr2all) <- "subtype"
+Ccr2all <- subset(Ccr2all, ident = "Ccr2+")
+Idents(Ccr2all) <- "seurat_clusters"
+reassign <- RenameIdents(Ccr2all, "8" = "MHCII hi BAMs", "12" = "Monocytes")
+markers <- FindMarkers(reassign, ident.1 = "MHCII hi BAMs", ident.2 = "Monocytes", verbose = FALSE)
+markers <- markers %>% filter(avg_log2FC >= 1, p_val_adj <= 0.01, pct.1 >= 0.2)
+write.csv(markers, "R_data/Ptprc_or_Itgam_0/final/BAMs/marker_Ccr2.bam.to.mono.csv")
+feature <- c("C1qa", "C1qb", "C1qc", "Mrc1", "H2-Ab1", "H2-Aa", "H2-Eb1", "Cd74")
+VlnPlot(reassign, features = feature, stack = TRUE, pt.size = 0) + 
+  theme(strip.text.y = element_text(angle = 0))
+
+# Single-cell-level DEG analysis using Seurat (based on the non-parametric Wilcoxon rank sum test)
+BAMhi <- subset(reassign, ident = "MHCII hi BAMs")
+Idents(BAMhi) <- "dpi"
+d6 <- FindMarkers(BAMhi, ident.1 = "6", ident.2 = "0", verbose = FALSE)
+deg6_1 <- d6 %>% filter(avg_log2FC >= 0.25, p_val_adj <= 0.01, pct.1 >= 0.2)
+deg6_2 <- d6 %>% filter(avg_log2FC <= -0.25, p_val_adj <= 0.01, pct.2 >= 0.2)
+deg6 <- rbind(deg6_1, deg6_2)
+write.csv(deg6, "R_data/Ptprc_or_Itgam_0/final/BAMs/BAMhi_6_seurat.csv")
+d30 <- FindMarkers(BAMhi, ident.1 = "30", ident.2 = "0", verbose = FALSE)
+deg30_1 <- d30 %>% filter(avg_log2FC >= 0.25, p_val_adj <= 0.01, pct.1 >= 0.2)
+deg30_2 <- d30 %>% filter(avg_log2FC <= -0.25, p_val_adj <= 0.01, pct.2 >= 0.2)
+deg30 <- rbind(deg30_1, deg30_2)
+write.csv(deg30, "R_data/Ptprc_or_Itgam_0/final/BAMs/BAMhi_30_seurat.csv")
+d100 <- FindMarkers(BAMhi, ident.1 = "100", ident.2 = "0", verbose = FALSE)
+deg100_1 <- d100 %>% filter(avg_log2FC >= 0.25, p_val_adj <= 0.01, pct.1 >= 0.2)
+deg100_2 <- d100 %>% filter(avg_log2FC <= -0.25, p_val_adj <= 0.01, pct.2 >= 0.2)
+deg100 <- rbind(deg100_1, deg100_2)
+write.csv(deg100, "R_data/Ptprc_or_Itgam_0/final/BAMs/BAMhi_100_seurat.csv")
+
+BAMlo <- subset(reassign, ident = "MHCII lo BAMs")
+Idents(BAMlo) <- "dpi"
+d6 <- FindMarkers(BAMlo, ident.1 = "6", ident.2 = "0", verbose = FALSE)
+deg6_1 <- d6 %>% filter(avg_log2FC >= 0.25, p_val_adj <= 0.01, pct.1 >= 0.2)
+deg6_2 <- d6 %>% filter(avg_log2FC <= -0.25, p_val_adj <= 0.01, pct.2 >= 0.2)
+deg6 <- rbind(deg6_1, deg6_2)
+write.csv(deg6, "R_data/Ptprc_or_Itgam_0/final/BAMs/BAMlo_6_seurat.csv")
+d30 <- FindMarkers(BAMlo, ident.1 = "30", ident.2 = "0", verbose = FALSE)
+deg30_1 <- d30 %>% filter(avg_log2FC >= 0.25, p_val_adj <= 0.01, pct.1 >= 0.2)
+deg30_2 <- d30 %>% filter(avg_log2FC <= -0.25, p_val_adj <= 0.01, pct.2 >= 0.2)
+deg30 <- rbind(deg30_1, deg30_2)
+write.csv(deg30, "R_data/Ptprc_or_Itgam_0/final/BAMs/BAMlo_30_seurat.csv")
+d100 <- FindMarkers(BAMlo, ident.1 = "100", ident.2 = "0", verbose = FALSE)
+deg100_1 <- d100 %>% filter(avg_log2FC >= 0.25, p_val_adj <= 0.01, pct.1 >= 0.2)
+deg100_2 <- d100 %>% filter(avg_log2FC <= -0.25, p_val_adj <= 0.01, pct.2 >= 0.2)
+deg100 <- rbind(deg100_1, deg100_2)
+write.csv(deg100, "R_data/Ptprc_or_Itgam_0/final/BAMs/BAMlo_100_seurat.csv")
+
+# Seurat DEG plot
+Idents(BAMlo) <- "dpi"
+custom_order <- c("0", "6", "30", "100")
+Idents(BAMlo) <- factor(Idents(BAMlo), levels = custom_order)
+
+df <- FetchData(BAMlo, vars = c("dpi", "Il18"))
+colnames(df) <- c("dpi", "expr")
+df$dpi <- as.factor(df$dpi)
+comparisons <- list(c("6", "0"), c("30", "0"), c("100", "0"))
+stat_test <- df %>%
+  wilcox_test(expr ~ dpi, comparisons = comparisons, paired = FALSE) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_y_position() 
+VlnPlot(BAMlo, features = "Il18") +
+  stat_pvalue_manual(stat_test, label = "p.adj", tip.length = 0.01) +
+  ylim(NA, 1.4 * max(FetchData(BAMlo, "Il18")))
+
