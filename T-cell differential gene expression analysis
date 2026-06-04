@@ -1,0 +1,99 @@
+library(tidyverse)
+library(cowplot)
+library(SingleCellExperiment)
+library(Seurat)
+library(tidyverse)
+library(Matrix)
+library(scales)
+library(cowplot)
+library(RCurl)
+library(dplyr)
+library(Matrix.utils)
+library(ggplot2)
+library(dplyr)
+library("reshape2")
+library(pheatmap)
+library(ggforce)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+library(ggcorrplot)
+library(rstatix)
+library(ggpubr)
+library(readxl)
+
+
+load("R_data/Ptprc_or_Itgam_0/final/decontx_clustering_res.0.6.RData")
+subset <- subset(reassign, idents = "T cells")
+DimPlot(subset, reduction = "umap", label = TRUE, label.size = 3, repel = TRUE, pt.size = 0.2, alpha = 0.5)
+
+FeaturePlot(subset, features = c("Cd3e", "Cd4", "Cd8a", "Cd40lg", "Gata3", "Zfp683"))
+
+# T cell subtypes based on CD4 and CD8 expression
+subset$subtype <- "Unassigned"
+raw_counts <- subset@assays$RNA@counts
+subset$subtype[raw_counts["Cd4", ] > 0 & raw_counts["Cd8a", ] == 0] <- "CD4+"
+subset$subtype[raw_counts["Cd8a", ] > 0 & raw_counts["Cd4", ] == 0] <- "CD8+"
+subset$subtype[raw_counts["Cd4", ] > 0 & raw_counts["Cd8a", ] > 0] <- "DP"
+# Visualize the split
+DimPlot(subset, group.by = "subtype", label = TRUE)
+
+# Count in each subtype by time points (sample names)
+n_cells <- FetchData(subset, vars = c("subtype", "sample_name")) %>%
+  dplyr::count(subtype, sample_name)
+ggplot(n_cells, aes(x=subtype, y=n, fill=sample_name)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_text(aes(label=n), vjust = -.2, position=position_dodge(1))
+# Stacked bar chart
+df <- data.frame(
+  group = rep(c("1_mock", "2_6dpi", "3_30dpi", "4_100dpi"), each = 4),
+  subpopulation = rep(c("2_CD4", "1_CD8", "3_DP", "4_DN"), times = 4),
+  count = c(0.51, 0.67, 0.03, 0.74, 1.08, 1.79, 0.27, 0.88, 0.52, 1.79, 0.21, 0.51, 0.97, 2.14, 0.12, 0.62)
+)
+df <- data.frame(
+  group = rep(c("1_mock", "2_6dpi", "3_30dpi", "4_100dpi"), each = 2),
+  subpopulation = rep(c("CD4", "CD8"), times = 4),
+  count = c(0.51, 0.67, 1.08, 1.79, 0.52, 1.79, 0.97, 2.14)
+)
+ggplot(df, aes(x = group, y = count, fill = subpopulation)) +
+  geom_bar(stat = "identity") +
+  labs(y = "Cell Count", x = "Sample") +
+  theme_minimal()
+
+# CD8 T cells
+Idents(subset) <- "subtype"
+CD8 <- subset(subset, idents = "CD8+")
+Idents(CD8) <- "dpi"
+
+# Exaustion marker genes Pdcd1, Cd38, Eomes, Tigit, Entpd1, Ctla4, Tox
+# Other markers H2-Aa, H2-Ab1, Mki67, Gzmb, Havcr2
+df <- FetchData(CD8, vars = c("dpi", "Cd38"))
+colnames(df) <- c("dpi", "gene")
+df$dpi <- as.factor(df$dpi)
+comparisons <- list(c("6", "0"), c("30", "0"), c("100", "0"))
+stat_test <- df %>%
+  wilcox_test(gene ~ dpi, comparisons = comparisons, paired = FALSE) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_y_position() 
+VlnPlot(CD8, features = "Cd38") +
+  stat_pvalue_manual(stat_test, label = "p.adj", tip.length = 0.01) +
+  ylim(NA, 1.2 * max(FetchData(CD8, "Cd38")))
+
+# Single-cell-level DEG analysis using Seurat
+Idents(subset) <- "dpi"
+d6 <- FindMarkers(subset, ident.1 = "6", ident.2 = "0", verbose = FALSE)
+deg6_1 <- d6 %>% filter(avg_log2FC >= 1, p_val_adj <= 0.01, pct.1 > 0.2)
+deg6_2 <- d6 %>% filter(avg_log2FC <= -1, p_val_adj <= 0.01, pct.2 > 0.2)
+deg6 <- rbind(deg6_1, deg6_2)
+write.csv(deg6, "R_data/Ptprc_or_Itgam_0/final/T.cells/6_seurat.csv")
+
+d30 <- FindMarkers(subset, ident.1 = "30", ident.2 = "0", verbose = FALSE)
+deg30_1 <- d30 %>% filter(avg_log2FC >= 1, p_val_adj <= 0.01, pct.1 > 0.2)
+deg30_2 <- d30 %>% filter(avg_log2FC <= -1, p_val_adj <= 0.01, pct.2 > 0.2)
+deg30 <- rbind(deg30_1, deg30_2)
+write.csv(deg30, "R_data/Ptprc_or_Itgam_0/final/T.cells/30_seurat.csv")
+
+d100 <- FindMarkers(subset, ident.1 = "100", ident.2 = "0", verbose = FALSE)
+deg100_1 <- d100 %>% filter(avg_log2FC >= 1, p_val_adj <= 0.01, pct.1 > 0.2)
+deg100_2 <- d100 %>% filter(avg_log2FC <= -1, p_val_adj <= 0.01, pct.2 > 0.2)
+deg100 <- rbind(deg100_1, deg100_2)
+write.csv(deg100, "R_data/Ptprc_or_Itgam_0/final/T.cells/100_seurat.csv")
