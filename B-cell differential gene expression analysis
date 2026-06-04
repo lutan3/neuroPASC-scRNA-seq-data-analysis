@@ -1,0 +1,46 @@
+library(tidyverse)
+library(cowplot)
+library(SingleCellExperiment)
+library(Seurat)
+library(tidyverse)
+library(Matrix)
+library(scales)
+library(cowplot)
+library(RCurl)
+library(dplyr)
+library(Matrix.utils)
+library(ggplot2)
+library(dplyr)
+library("reshape2")
+library(pheatmap)
+library(ggforce)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+
+load("R_data/Ptprc_or_Itgam_0/final/decontx_clustering_res.0.6.RData")
+B.cell <- subset(reassign, idents = "B cells") # n = 639
+DimPlot(B.cell, reduction = "umap", label = TRUE, pt.size = 0.2, alpha = 0.5)
+
+# Single-cell-level DEG analysis using Seurat (based on the non-parametric Wilcoxon rank sum test)
+Idents(B.cell) <- "sample_name"
+
+d6 <- FindMarkers(B.cell, ident.1 = "CD45+ brain 1000pfu intranasal 6d", 
+                  ident.2 = "CD45+ brain mock 0d", verbose = FALSE)
+deg6_1 <- d6 %>% filter(avg_log2FC >= 1, p_val_adj <= 0.01, pct.1 > 0.2)
+deg6_2 <- d6 %>% filter(avg_log2FC <= -1, p_val_adj <= 0.01, pct.2 > 0.2)
+deg6 <- rbind(deg6_1, deg6_2)
+write.csv(deg6, "R_data/Ptprc_or_Itgam_0/final/B.cells/6_seurat.csv")
+
+d30 <- FindMarkers(B.cell, ident.1 = "CD45+ brain 1000pfu intranasal 30d", 
+                   ident.2 = "CD45+ brain mock 0d", verbose = FALSE)
+deg30_1 <- d30 %>% filter(avg_log2FC >= 1, p_val_adj <= 0.01, pct.1 > 0.2)
+deg30_2 <- d30 %>% filter(avg_log2FC <= -1, p_val_adj <= 0.01, pct.2 > 0.2)
+deg30 <- rbind(deg30_1, deg30_2)
+write.csv(deg30, "R_data/Ptprc_or_Itgam_0/final/B.cells/30_seurat.csv")
+
+d100 <- FindMarkers(B.cell, ident.1 = "CD45+ brain 1000pfu intranasal 100d", 
+                    ident.2 = "CD45+ brain mock 0d", verbose = FALSE)
+deg100_1 <- d100 %>% filter(avg_log2FC >= 1, p_val_adj <= 0.01, pct.1 > 0.2)
+deg100_2 <- d100 %>% filter(avg_log2FC <= -1, p_val_adj <= 0.01, pct.2 > 0.2)
+deg100 <- rbind(deg100_1, deg100_2)
+write.csv(deg100, "R_data/Ptprc_or_Itgam_0/final/B.cells/100_seurat.csv")
