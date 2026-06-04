@@ -1,0 +1,616 @@
+library(tidyverse)
+library(cowplot)
+library(SingleCellExperiment)
+library(Seurat)
+library(tidyverse)
+library(Matrix)
+library(scales)
+library(cowplot)
+library(RCurl)
+library(dplyr)
+library(Matrix.utils)
+library(ggplot2)
+library(dplyr)
+library("reshape2")
+library(pheatmap)
+library(ggforce)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+library(ggcorrplot)
+library(rstatix)
+library(ggpubr)
+library(readxl)
+library(purrr)
+
+# Subset microglia
+load("R_data/Ptprc_or_Itgam_0/final/decontx_clustering_res.0.6.RData")
+subset <- subset(reassign, idents = "Microglia") # n = 15086
+DimPlot(object = subset, reduction = "umap", label = TRUE, pt.size = 0.2, alpha = 0.5)
+
+# Redo clustering
+DefaultAssay(subset) <- "RNA"
+subset[["SCT"]] <- NULL
+columns_to_remove <- grep("SCT_snn_res", colnames(subset@meta.data), value = TRUE)
+subset@meta.data <- subset@meta.data[, !colnames(subset@meta.data) %in% columns_to_remove]
+subset_2 <- subset(subset, features=rownames(subset)[rowSums(subset@assays$RNA@counts > 0) >= 10])
+
+# Run SCT
+options(future.globals.maxSize = 4000 * 1024^2)
+SCT <- SCTransform(subset_2, vst.flavor = "v2", vars.to.regress = c("S.Score", "G2M.Score", "mitoRatio"))
+SCT <- RunPCA(object = SCT)
+ElbowPlot(SCT, ndims = 50)
+SCT <- FindNeighbors(object = SCT, dims = 1:40)
+SCT <- FindClusters(object = SCT, resolution = 2)
+SCT <- RunUMAP(object = SCT, dims = 1:40)
+DimPlot(object = SCT, reduction = "umap", label = TRUE, pt.size = 0.2)
+save(SCT, file = "R_data/Ptprc_or_Itgam_0/final/microglia/clustering_res.2.RData")
+
+# Plot UMAP with highlighted cells
+Idents(SCT) <- "dpi"
+highlight_cells <- WhichCells(SCT, idents = "0")
+highlight_cells <- WhichCells(SCT, idents = "6")
+highlight_cells <- WhichCells(SCT, idents = "30")
+highlight_cells <- WhichCells(SCT, idents = "100")
+DimPlot(SCT, cells.highlight = highlight_cells, cols.highlight = "red", cols = "lightgrey", pt.size = 0.1) +
+  ggtitle("100 vs All Cells")
+
+# Markers for each cluster against other clusters
+marker0 <- FindMarkers(SCT, ident.1 = 0)
+marker0_sorted <- marker0 %>% dplyr::filter(avg_log2FC > 1)
+marker1 <- FindMarkers(SCT, ident.1 = 1)
+marker1_sorted <- marker1 %>% dplyr::filter(avg_log2FC > 1)
+marker2 <- FindMarkers(SCT, ident.1 = 2)
+marker2_sorted <- marker2 %>% dplyr::filter(avg_log2FC > 1)
+marker3 <- FindMarkers(SCT, ident.1 = 3)
+marker3_sorted <- marker3 %>% dplyr::filter(avg_log2FC > 1)
+marker4 <- FindMarkers(SCT, ident.1 = 4)
+marker4_sorted <- marker4 %>% dplyr::filter(avg_log2FC > 1)
+marker5 <- FindMarkers(SCT, ident.1 = 5)
+marker5_sorted <- marker5 %>% dplyr::filter(avg_log2FC > 1)
+marker6 <- FindMarkers(SCT, ident.1 = 6)
+marker6_sorted <- marker6 %>% dplyr::filter(avg_log2FC > 1)
+marker7 <- FindMarkers(SCT, ident.1 = 7)
+marker7_sorted <- marker7 %>% dplyr::filter(avg_log2FC > 1)
+marker8 <- FindMarkers(SCT, ident.1 = 8)
+marker8_sorted <- marker8 %>% dplyr::filter(avg_log2FC > 1)
+marker9 <- FindMarkers(SCT, ident.1 = 9)
+marker9_sorted <- marker9 %>% dplyr::filter(avg_log2FC > 1)
+marker10 <- FindMarkers(SCT, ident.1 = 10)
+marker10_sorted <- marker10 %>% dplyr::filter(avg_log2FC > 1)
+marker11 <- FindMarkers(SCT, ident.1 = 11)
+marker11_sorted <- marker11 %>% dplyr::filter(avg_log2FC > 1)
+marker12 <- FindMarkers(SCT, ident.1 = 12)
+marker12_sorted <- marker12 %>% dplyr::filter(avg_log2FC > 1)
+marker13 <- FindMarkers(SCT, ident.1 = 13)
+marker13_sorted <- marker13 %>% dplyr::filter(avg_log2FC > 1)
+marker14 <- FindMarkers(SCT, ident.1 = 14)
+marker14_sorted <- marker14 %>% dplyr::filter(avg_log2FC > 1)
+marker15 <- FindMarkers(SCT, ident.1 = 15)
+marker15_sorted <- marker15 %>% dplyr::filter(avg_log2FC > 1)
+marker16 <- FindMarkers(SCT, ident.1 = 16)
+marker16_sorted <- marker16 %>% dplyr::filter(avg_log2FC > 1)
+marker17 <- FindMarkers(SCT, ident.1 = 17)
+marker17_sorted <- marker17 %>% dplyr::filter(avg_log2FC > 1)
+marker18 <- FindMarkers(SCT, ident.1 = 18)
+marker18_sorted <- marker18 %>% dplyr::filter(avg_log2FC > 1)
+marker19 <- FindMarkers(SCT, ident.1 = 19)
+marker19_sorted <- marker19 %>% dplyr::filter(avg_log2FC > 1)
+marker20 <- FindMarkers(SCT, ident.1 = 20)
+marker20_sorted <- marker20 %>% dplyr::filter(avg_log2FC > 1)
+marker21 <- FindMarkers(SCT, ident.1 = 21)
+marker21_sorted <- marker21 %>% dplyr::filter(avg_log2FC > 1)
+marker22 <- FindMarkers(SCT, ident.1 = 22)
+marker22_sorted <- marker22 %>% dplyr::filter(avg_log2FC > 1)
+marker23 <- FindMarkers(SCT, ident.1 = 23)
+marker23_sorted <- marker23 %>% dplyr::filter(avg_log2FC > 1)
+marker24 <- FindMarkers(SCT, ident.1 = 24)
+marker24_sorted <- marker24 %>% dplyr::filter(avg_log2FC > 1)
+marker25 <- FindMarkers(SCT, ident.1 = 25)
+marker25_sorted <- marker25 %>% dplyr::filter(avg_log2FC > 1)
+marker26 <- FindMarkers(SCT, ident.1 = 26)
+marker26_sorted <- marker26 %>% dplyr::filter(avg_log2FC > 1)
+marker27 <- FindMarkers(SCT, ident.1 = 27)
+marker27_sorted <- marker27 %>% dplyr::filter(avg_log2FC > 1)
+
+write.csv(marker0_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.0.csv", row.names = TRUE)
+write.csv(marker1_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.1.csv", row.names = TRUE)
+write.csv(marker2_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.2.csv", row.names = TRUE)
+write.csv(marker3_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.3.csv", row.names = TRUE)
+write.csv(marker4_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.4.csv", row.names = TRUE)
+write.csv(marker5_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.5.csv", row.names = TRUE)
+write.csv(marker6_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.6.csv", row.names = TRUE)
+write.csv(marker7_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.7.csv", row.names = TRUE)
+write.csv(marker8_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.8.csv", row.names = TRUE)
+write.csv(marker9_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.9.csv", row.names = TRUE)
+write.csv(marker10_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.10.csv", row.names = TRUE)
+write.csv(marker11_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.11.csv", row.names = TRUE)
+write.csv(marker12_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.12.csv", row.names = TRUE)
+write.csv(marker13_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.13.csv", row.names = TRUE)
+write.csv(marker14_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.14.csv", row.names = TRUE)
+write.csv(marker15_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.15.csv", row.names = TRUE)
+write.csv(marker16_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.16.csv", row.names = TRUE)
+write.csv(marker17_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.17.csv", row.names = TRUE)
+write.csv(marker18_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.18.csv", row.names = TRUE)
+write.csv(marker19_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.19.csv", row.names = TRUE)
+write.csv(marker20_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.20.csv", row.names = TRUE)
+write.csv(marker21_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.21.csv", row.names = TRUE)
+write.csv(marker22_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.22.csv", row.names = TRUE)
+write.csv(marker23_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.23.csv", row.names = TRUE)
+write.csv(marker24_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.24.csv", row.names = TRUE)
+write.csv(marker25_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.25.csv", row.names = TRUE)
+write.csv(marker26_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.26.csv", row.names = TRUE)
+write.csv(marker27_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.27.csv", row.names = TRUE)
+
+# Reassign cluster names and add reassigned cluster names to the metadata
+cluster_map <- c("0" = "Homeostatic microglia", 
+                 "1" = "IEG-enriched microglia", 
+                 "2" = "Homeostatic microglia", 
+                 "3" = "IEG-enriched microglia", 
+                 "4" = "Homeostatic microglia", 
+                 "5" = "IEG-enriched microglia", 
+                 "6" = "TIM-like microglia",
+                 "7" = "Ccl3/Ccl4 inflammatory microglia", 
+                 "8" = "Homeostatic microglia", 
+                 "9" = "Homeostatic microglia", 
+                 "10" = "Homeostatic microglia", 
+                 "11" = "Hspa1 microglia",
+                 "12" = "TIM-like microglia",
+                 "13" = "NIC-1", 
+                 "14" = "Ccl3/Ccl4 inflammatory microglia", 
+                 "15" = "Homeostatic microglia", 
+                 "16" = "Homeostatic microglia", 
+                 "17" = "Homeostatic microglia", 
+                 "18" = "Hspa1 microglia",
+                 "19" = "Homeostatic microglia", 
+                 "20" = "NIC-2", 
+                 "21" = "Homeostatic microglia", 
+                 "22" = "Homeostatic microglia",
+                 "23" = "NIC-1",
+                 "24" = "Homeostatic microglia",
+                 "25" = "DAM-like microglia", 
+                 "26" = "IFN-responsive microglia", 
+                 "27" = "IEG-enriched microglia")
+SCT$reassigned_clusters <- plyr::mapvalues(x = as.character(SCT$seurat_clusters),
+                                           from = names(cluster_map), 
+                                           to = unname(cluster_map))
+Idents(SCT) <- "reassigned_clusters"
+custom_order <- c("IEG-enriched microglia", "Hspa1 microglia", 
+                  "Homeostatic microglia", "DAM-like microglia", 
+                  "IFN-responsive microglia", "Ccl3/Ccl4 inflammatory microglia", 
+                  "TIM-like microglia", "NIC-1",
+                  "NIC-2")
+Idents(SCT) <- factor(Idents(SCT), levels = custom_order)
+DimPlot(object = SCT, reduction = "umap", label = TRUE, pt.size = 0.2)
+save(SCT, file = "R_data/Ptprc_or_Itgam_0/final/microglia/reassigned.RData")
+
+# QC check
+VlnPlot(SCT, features = c("nCount_RNA", "nCount_SCT", "nCount_decontx"))
+VlnPlot(SCT, features = c("nFeature_RNA", "nFeature_SCT", "nFeature_decontx"))
+VlnPlot(SCT, features = "log10GenesPerUMI")
+VlnPlot(SCT, features = "mitoRatio")
+
+G1S_genes <- c(
+  "Mcm2", "Mcm3", "Mcm4", "Mcm5", "Mcm6", "Mcm7",
+  "Pcna", "Tyms", "Fen1", "Msh2", "Msh6", "Rfc2", "Rfc4",
+  "Rpa2", "Rpa3", "Uhrf1", "Ung", "Cdc45", "Cdc6", "Ccne1", "Ccne2",
+  "Cdk2", "E2f1", "E2f2", "E2f3", "Rrm1", "Rrm2", "Top1", "Top2a")
+G2M_genes <- c(
+  "Cdk1", "Ccnb1", "Ccnb2", "Cdc20", "Cdc25c",
+  "Aurkb", "Bub1", "Bub1b", "Nusap1", "Tpx2",
+  "Kif11", "Kif20b", "Kif23", "Kif2c", "Kif4a",
+  "Plk1", "Cenpa", "Cenpe", "Cenpf", "Anln",
+  "Ttk", "Ube2c", "Birc5", "Cdca3", "Cdca8",
+  "Hjurp", "Spc25", "Nek2", "Espl1", "Prc1")
+Proliferation_core <- c(
+  "Mki67", "Top2a", "Birc5", "Cdk1", "Ccnb1", "Ccna2", 
+  "Ube2c", "Nusap1", "Cenpf", "Aurkb", "Tpx2")
+proliferation_genes <- unique(c(G1S_genes, G2M_genes, Proliferation_core))
+SCT <- AddModuleScore(SCT, features = list(proliferation_genes), name = "ProliferationScore")
+VlnPlot(SCT, features = "ProliferationScore1", pt.size = 0)
+
+# Subcluster marker genes
+marker <- FindMarkers(SCT, ident.1 = "Hspa1 microglia") 
+marker_sorted <- marker %>% dplyr::filter(avg_log2FC > 1)
+write.csv(marker_sorted, "R_data/Ptprc_or_Itgam_0/final/microglia/marker.Hspa1.csv", row.names = TRUE)
+
+# Calculate correlation of different clusters
+DefaultAssay(SCT) <- "RNA"
+SCT <- NormalizeData(SCT, normalization.method = "LogNormalize", scale.factor = 1e4)
+avg_exp <- AverageExpression(SCT, group.by = "reassigned_clusters", assays = "RNA", slot = "data")
+mat <- as.matrix(avg_exp$RNA)
+mat <- mat[, custom_order]
+cor_matrix <- cor(mat, method = "pearson")
+pheatmap::pheatmap(cor_matrix, cluster_rows = FALSE, cluster_cols = FALSE)
+ggcorrplot(cor_matrix, lab = TRUE, lab_size = 3, colors = c("blue", "white", "red"), type = "lower",  tl.cex = 10)
+
+avg_exp <- AverageExpression(SCT, group.by = "seurat_clusters",assays = "RNA", slot = "data")
+mat <- as.matrix(avg_exp$RNA)
+cor_matrix <- cor(mat, method = "pearson")
+pheatmap::pheatmap(cor_matrix, cluster_rows = FALSE, cluster_cols = FALSE)
+ggcorrplot(cor_matrix, lab = TRUE, lab_size = 3, colors = c("blue", "white", "red"), type = "lower",  tl.cex = 10)
+
+# Count in each cluster by sample and percent stacked barchart
+n_cells <- FetchData(SCT, vars = c("reassigned_clusters", "sample")) %>%
+  dplyr::count(reassigned_clusters, sample)
+fractions <- n_cells %>%
+  group_by(sample) %>%
+  mutate(frac = n / sum(n))
+
+fractions$reassigned_clusters <- factor(fractions$reassigned_clusters,
+                                        levels = rev(custom_order))
+ggplot(fractions, aes(x = sample, y = frac, fill = reassigned_clusters)) +
+  geom_bar(stat = "identity", position = "fill") +
+  scale_y_continuous(labels = scales::percent_format())
+
+# Calculate homeostatic gene expression level statistic significance
+DefaultAssay(SCT) <- "SCT"
+df <- FetchData(SCT, vars = c("reassigned_clusters", "Sparc"))
+colnames(df) <- c("cluster", "gene")
+df$cluster <- as.factor(df$cluster)
+comparisons <- list(c("IEG-enriched microglia", "Homeostatic microglia"),
+                    c("Hspa1 microglia", "Homeostatic microglia"),
+                    c("DAM-like microglia", "Homeostatic microglia"),
+                    c("IFN-responsive microglia", "Homeostatic microglia"),
+                    c("Ccl3/Ccl4 inflammatory microglia", "Homeostatic microglia"),
+                    c("TIM-like microglia", "Homeostatic microglia"),
+                    c("NIC-1", "Homeostatic microglia"), 
+                    c("NIC-2", "Homeostatic microglia"))
+stat_test <- df %>%
+  wilcox_test(gene ~ cluster, comparisons = comparisons, paired = FALSE) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_y_position()
+VlnPlot(SCT, features = "Sparc") +
+  stat_pvalue_manual(stat_test, label = "p.adj", tip.length = 0.01) +
+  ylim(NA, 1.3 * max(FetchData(SCT, "Sparc")))
+
+# DotPlot and heatmap for subclusters
+features <- c("P2ry12", "Tmem119", "Sparc", 
+              "Egr1", "Ier2", "Fosb",
+              "Hspa1a", "Hspa1b",
+              "Lpl", "Itgax", 
+              "Ifit3", "Isg15", 
+              "Ccl3", "Ccl4", 
+              "Tnf", "Nlrp3", "Nfkbid", "Nr4a1", 
+              "mt-Nd4", "mt-Nd3")
+DotPlot(SCT, features = features) + RotatedAxis()
+DoHeatmap(subset(SCT, downsample = 100), features = features, size = 1) 
+
+# Module score calculation
+cytoskeletal_genes <- c("Myo18a", "Myo18b", "Gdi1", "Klc1", "Capg", "Cep250",
+                        "Wdfy1", "Wdfy2", "Ccdc28b", "Ccdc82", "Ccdc142", "Ank", "Ankrd10", 
+                        "Clasrp", "Golgb1", "Sfi1", "Stard9", "Mroh1", "Stx16", "Gdi1")
+SCT <- AddModuleScore(SCT, features = list(cytoskeletal_genes), name = "Cytoskeletal_Score")
+VlnPlot(SCT, features = "Cytoskeletal_Score1", pt.size = 0.1)
+
+rna_processing_genes <- c("Luc7l2", "Luc7l3", "Srsf1", "Srsf5", "Srsf6", 
+                          "Rbm25", "Rbm28", "Rbm12b2", "Snapc3", "Snapc4", "Prpf39", "Prpf40b",
+                          "Pnn", "Entr1", "Zc3h7a", "Sugp2", "Taf15", "Smg1", "Brf1", "Tardbp",
+                          "Srsf5", "Srsf6", "Scaf4", "Ttc28", "Srcap", "Pabpn1", "Pnisr")
+SCT <- AddModuleScore(SCT, features = list(rna_processing_genes), name = "RNA_Score")
+VlnPlot(SCT, features = "RNA_Score1", pt.size = 0.1)
+
+activation_genes <- c("Lgals3", "Csf2ra", "Lpl", "Itgax", "Cst7", "Csf1",
+                      "Plaur", "Tspo", "Stab1", "Cdh23", "Card9", "Csf2ra", "Csf1",
+                      "Tnf", "S100a9", "Hmox1", "Prdx1", "Mt1")
+SCT <- AddModuleScore(SCT, features = list(activation_genes), name = "Activation_Score")
+VlnPlot(SCT, features = "Activation_Score1", pt.size = 0.1)
+
+protein_turnover_genes <- c("Usp35", "Usp40", "Trim41", "Prkn", "Dtx3", "Chfr", "Snapc4",
+                            "Ppp1r12c", "Pan2", "Zswim8", "Zfp445", "Mycbp2", "Smg1", "Sugp2")
+SCT <- AddModuleScore(SCT, features = list(protein_turnover_genes), name = "Protein_Score")
+VlnPlot(SCT, features = "Protein_Score1", pt.size = 0.1)
+
+dam_genes <- c("Apoe", "Lpl", "Cst7", "Itgax", "Lgals3", 
+               "Csf1", "Csf2ra", "Trem2", "Tyrobp", "Fabp5",
+               "Axl", "Clec7a", "Ctss", "Cd9", "Cd63",
+               "Timp2", "Vav3", "Gpnmb")
+SCT <- AddModuleScore(SCT, features = list(dam_genes), name = "DAM_Score")
+VlnPlot(SCT, features = "DAM_Score1", pt.size = 0.1)
+
+isr_genes <- c("Atf4", "Ddit3", "Ddit4", "Trib3", "Asns",
+               "Gadd34" , "Chac1", "Ppp1r15a", "Txnip", "Atf3",
+               "Slc7a5", "Eif4ebp1", "Eif2ak3", "Eif2s1")
+SCT <- AddModuleScore(SCT, features = list(isr_genes), name = "ISR_Score")
+VlnPlot(SCT, features = "ISR_Score1", pt.size = 0.1)
+
+artifact_genes <- c("Rgs1", "Hist2h2aa1", "Hist1h4i", "Nfkbiz", "Klf2", "Junb", "Dusp1", 
+                    "Ccl3", "Hspa1a", "Hsp90aa1", "Fos", "Hspa1b", "Jun", "Jund", "Nfkbid", 
+                    "Gem", "Ccl4", "Ier5", "Txnip", "Hist1h2bc", "Zfp36", "Hist1h1c", 
+                    "Egr1", "Atf3", "Rhob")
+SCT <- AddModuleScore(SCT, features = list(artifact_genes), name = "Artifact_Score")
+VlnPlot(SCT, features = "Artifact_Score1", pt.size = 0.1)
+
+# Mitochondrial gene module score calculation
+mito <- read_excel("R_data/Ptprc_or_Itgam_0/final/microglia/Mouse.MitoCarta3.0.xls", sheet = "A Mouse MitoCarta3.0")
+mito_genes <- mito$Symbol
+mito_genes_filtered <- mito_genes[mito_genes %in% rownames(SCT)]
+mt_genes <- c("mt-Nd1","mt-Nd2","mt-Nd3","mt-Nd4","mt-Nd4l","mt-Nd5","mt-Nd6",
+              "mt-Cytb","mt-Co1","mt-Co2","mt-Co3","mt-Atp6","mt-Atp8")
+mito_genes_filtered <- mito_genes_filtered[! mito_genes_filtered %in% mt_genes]
+SCT <- AddModuleScore(SCT, features = list(mito_genes_filtered), name = "nuMito_Score")
+SCT <- AddModuleScore(SCT, features = list(mt_genes), name = "mtMito_Score")
+
+df <- FetchData(SCT, vars = c("reassigned_clusters", "mtMito_Score1"))
+colnames(df) <- c("cluster", "score")
+df$cluster <- as.factor(df$cluster)
+comparisons <- list(c("TIM-like microglia", "Homeostatic microglia"), 
+                    c("NIC-1", "Homeostatic microglia"), 
+                    c("NIC-2", "Homeostatic microglia"))
+stat_test <- df %>%
+  wilcox_test(score ~ cluster, comparisons = comparisons, paired = FALSE) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_y_position()
+VlnPlot(SCT, features = "mtMito_Score1") +
+  stat_pvalue_manual(stat_test, label = "p.adj", tip.length = 0.01) +
+  ylim(NA, 1.6 * max(FetchData(SCT, "mtMito_Score1")))
+
+# Mt fusion 
+fusion_genes <- c("Mfn1","Mfn2","Opa1","Pgam5","Yme1l1")
+SCT <- AddModuleScore(SCT, features = list(fusion_genes), name = "Fusion_Score")
+df <- FetchData(SCT, vars = c("dpi", "Fusion_Score1"))
+colnames(df) <- c("dpi", "expr")
+df$dpi <- as.factor(df$dpi)
+comparisons <- list(c("6", "0"), c("30", "0"), c("100", "0"))
+stat_test <- df %>%
+  wilcox_test(expr ~ dpi, comparisons = comparisons, paired = FALSE) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_y_position() 
+VlnPlot(SCT, features = "Fusion_Score1", pt.size = 0) +
+  stat_pvalue_manual(stat_test, label = "p.adj", tip.length = 0.01) +
+  ylim(NA, 1.2 * max(FetchData(SCT, "Fusion_Score1")))
+
+# Mt fission
+fission_genes <- c("Dnm1l","Fis1","Mff","Mief1","Mief2","Gdap1","Inf2")
+SCT <- AddModuleScore(SCT, features = list(fission_genes), name = "Fission_Score")
+df <- FetchData(SCT, vars = c("dpi", "Fission_Score1"))
+colnames(df) <- c("dpi", "expr")
+df$dpi <- as.factor(df$dpi)
+comparisons <- list(c("6", "0"), c("30", "0"), c("100", "0"))
+stat_test <- df %>%
+  wilcox_test(expr ~ dpi, comparisons = comparisons, paired = FALSE) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_y_position() 
+VlnPlot(SCT, features = "Fission_Score1", pt.size = 0) +
+  stat_pvalue_manual(stat_test, label = "p.adj", tip.length = 0.01) +
+  ylim(NA, 1.2 * max(FetchData(SCT, "Fission_Score1")))
+
+# Mito gene analysis
+Idents(SCT) <- "reassigned_clusters"
+d <- FindMarkers(SCT, ident.1 = c("TIM-like microglia", "NIC-1", "NIC-2"), 
+                 verbose = FALSE)
+write.csv(d, file = "R_data/Ptprc_or_Itgam_0/final/microglia/seurat_DEG/three.clusters_all.csv", row.names = TRUE)
+d_1 <- d %>% filter(avg_log2FC >= 1, p_val_adj <= 0.01, pct.1 > 0.2)
+d_2 <- d %>% filter(avg_log2FC <= -1, p_val_adj <= 0.01, pct.2 > 0.2)
+d <- rbind(d_1, d_2)
+write.csv(d, file = "R_data/Ptprc_or_Itgam_0/final/microglia/seurat_DEG/three.clusters.csv", row.names = TRUE)
+
+d_1$gene=row.names(d_1)
+d_1_mt <- d_1[d_1$gene %in% mito_genes_filtered, ]
+d_2$gene=row.names(d_2)
+d_2_mt <- d_2[d_2$gene %in% mito_genes_filtered, ]
+write.csv(d_1_mt, file = "R_data/Ptprc_or_Itgam_0/final/microglia/seurat_DEG/three.clusters_mt_up.csv", row.names = FALSE)
+write.csv(d_2_mt, file = "R_data/Ptprc_or_Itgam_0/final/microglia/seurat_DEG/three.clusters_mt_down.csv", row.names = FALSE)
+
+d_1_mt <- read.csv("R_data/Ptprc_or_Itgam_0/final/microglia/seurat_DEG/three.clusters_mt_up.csv")
+up_list <- d_1_mt$gene
+up <- mito[mito$Symbol %in% up_list, ]
+write.csv(up, file = "R_data/Ptprc_or_Itgam_0/final/microglia/seurat_DEG/three.clusters_mt_up_function.csv", row.names = FALSE)
+d_2_mt <- read.csv("R_data/Ptprc_or_Itgam_0/final/microglia/seurat_DEG/three.clusters_mt_down.csv")
+down_list <- d_2_mt$gene
+down <- mito[mito$Symbol %in% down_list, ]
+write.csv(down, file = "R_data/Ptprc_or_Itgam_0/final/microglia/seurat_DEG/three.clusters_mt_down_function.csv", row.names = FALSE)
+
+OXPHOS <- mito %>% filter(grepl("OXPHOS > Complex V > CV subunits", MitoCarta3.0_MitoPathways))
+OXPHOS_genes <- OXPHOS$Symbol
+OXPHOS <- rbind(d_1, d_2)
+OXPHOS$gene=row.names(OXPHOS)
+OXPHOS <- OXPHOS[OXPHOS$gene %in% OXPHOS_genes, ]
+
+Idents(SCT) <- "dpi"
+d <- FindMarkers(SCT, ident.1 = 6, ident.2 = 0, verbose = FALSE)
+d_1 <- d %>% filter(avg_log2FC >= 1, p_val_adj <= 0.01, pct.1 > 0.2)
+d_2 <- d %>% filter(avg_log2FC <= -1, p_val_adj <= 0.01, pct.2 > 0.2)
+d_1$gene=row.names(d_1)
+d_1_mt <- d_1[d_1$gene %in% mt_genes, ]
+d_2$gene=row.names(d_2)
+d_2_mt <- d_2[d_2$gene %in% mito_genes_filtered, ]
+write.csv(d_1_mt, file = "R_data/Ptprc_or_Itgam_0/final/microglia/seurat_DEG/6_mt_up.csv", row.names = TRUE)
+write.csv(d_2_mt, file = "R_data/Ptprc_or_Itgam_0/final/microglia/seurat_DEG/6_mt_down.csv", row.names = TRUE)
+
+# Pie chart for regulated mt genes 
+cell_counts <- c(down.nu.mt = 140, down.others = 670, up.mu.mt = 8, up.mt.mt = 13, up.others = 262)
+cell_counts <- c(down.nu.mt.1 = 140, down.nu.mt.0.25 = 124, others = 632, up.nu.mt.1 = 8, up.nu.mt.0.25 = 40)
+
+df <- data.frame(Comp = names(cell_counts), Count = as.numeric(cell_counts))
+ggplot(df, aes(x = "", y = Count, fill = Comp)) +
+  geom_bar(width = 1, stat = "identity") +
+  coord_polar("y") +
+  theme_void() +
+  theme(legend.position = "right")
+
+# Compare the expression of specific genes
+Idents(SCT) <- "dpi"
+custom_order <- c("0", "6", "30", "100")
+Idents(SCT) <- factor(Idents(SCT), levels = custom_order)
+
+df <- FetchData(SCT, vars = c("dpi", "Il18"))
+colnames(df) <- c("dpi", "expr")
+df$dpi <- as.factor(df$dpi)
+comparisons <- list(c("6", "0"), c("30", "0"), c("100", "0"))
+stat_test <- df %>%
+  wilcox_test(expr ~ dpi, comparisons = comparisons, paired = FALSE) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_y_position() 
+VlnPlot(SCT, features = "Il18") +
+  stat_pvalue_manual(stat_test, label = "p.adj", tip.length = 0.01) +
+  ylim(NA, 1.2 * max(FetchData(SCT, "Il18")))
+
+# Single-cell-level DEG analysis using Seurat (based on the non-parametric Wilcoxon rank sum test)
+Idents(SCT) <- "dpi"
+d6 <- FindMarkers(SCT, ident.1 = "6", ident.2 = "0", verbose = FALSE)
+deg6_1 <- d6 %>% filter(avg_log2FC >= 0.25, p_val_adj <= 0.01, pct.1 > 0.2)
+deg6_2 <- d6 %>% filter(avg_log2FC <= -0.25, p_val_adj <= 0.01, pct.2 > 0.2)
+deg6 <- rbind(deg6_1, deg6_2)
+write.csv(deg6, "R_data/Ptprc_or_Itgam_0/final/microglia/6_seurat.csv")
+
+d30 <- FindMarkers(SCT, ident.1 = "30", ident.2 = "0", verbose = FALSE)
+deg30_1 <- d30 %>% filter(avg_log2FC >= 0.25, p_val_adj <= 0.01, pct.1 > 0.2)
+deg30_2 <- d30 %>% filter(avg_log2FC <= -0.25, p_val_adj <= 0.01, pct.2 > 0.2)
+deg30 <- rbind(deg30_1, deg30_2)
+write.csv(deg30, "R_data/Ptprc_or_Itgam_0/final/microglia/30_seurat.csv")
+
+d100 <- FindMarkers(SCT, ident.1 = "100", ident.2 = "0", verbose = FALSE)
+deg100_1 <- d100 %>% filter(g)
+deg100_2 <- d100 %>% filter(avg_log2FC <= -0.25, p_val_adj <= 0.01, pct.2 > 0.2)
+deg100 <- rbind(deg100_1, deg100_2)
+write.csv(deg100, "R_data/Ptprc_or_Itgam_0/final/microglia/100_seurat.csv")
+
+# Filter differentially regulated mt genes
+deg6$gene=row.names(deg6)
+deg6_mt <- deg6[deg6$gene %in% mt_genes, ]
+deg30$gene=row.names(deg30)
+deg30_mt <- deg30[deg30$gene %in% mt_genes, ]
+deg100$gene=row.names(deg100)
+deg100_mt <- deg100[deg100$gene %in% mt_genes, ]
+
+# Inflammatory response genes
+genes <- c("Nr4a1","Nfkbid","Tnf","Pbxip1","Ier3","Hnrnpa0","Ccrl2","Nfkbiz",
+           "Casp4","Ccl4","Epha2","Nlrp1b","Ccl3","Map3k8","Map3k7","Ywhaz",
+           "Nmi","Nlrp3","Ggt5","Il1a","Clcf1")
+Idents(SCT) <- "dpi"
+custom_order <- c("0", "6", "30", "100")
+Idents(SCT) <- factor(Idents(SCT), levels = custom_order)
+VlnPlot(SCT, features = genes, stack = TRUE)
+
+d6$gene=row.names(d6)
+d6$dpi="1_6dpi"
+d30$gene=row.names(d30)
+d30$dpi="2_30dpi"
+d100$gene=row.names(d100)
+d100$dpi="3_100dpi"
+
+d6_ir <- d6[d6$gene %in% genes, ]
+d30_ir <- d30[d30$gene %in% genes, ]
+d100_ir <- d100[d100$gene %in% genes, ]
+merge_ir=rbind(d6_ir, d30_ir, d100_ir)
+
+ggplot(merge_ir, aes(
+  x = dpi, 
+  y = gene, 
+  size = pct.1, 
+  fill = avg_log2FC)
+) +
+  geom_point(shape = 21, color = "black", stroke = 0.25) +
+  scale_fill_gradient2(low = "#000000", mid = "#F6DED8", high = "#C02727", midpoint = 1, limits = c(0.5, 2.7) ) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.major.y = element_blank())
+
+# Antigen presentation and processing
+genes <- c("H2-Q6","H2-D1","Tnf","Tap1","H2-M3","H2-Ob")
+VlnPlot(SCT, features = genes, stack = TRUE)
+
+d6_app <- d6[d6$gene %in% genes, ]
+d30_app <- d30[d30$gene %in% genes, ]
+d100_app <- d100[d100$gene %in% genes, ]
+merge_app=rbind(d6_app, d30_app, d100_app)
+
+ggplot(merge_app, aes(
+  x = dpi, 
+  y = gene, 
+  size = pct.1, 
+  fill = avg_log2FC)
+) +
+  geom_point(shape = 21, color = "black", stroke = 0.25) +
+  scale_fill_gradient2(low = "#000000", mid = "#F6DED8", high = "#C02727", midpoint = 1, limits = c(0.7, 2.5) ) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.major.y = element_blank())
+
+# Dotplot for specific GO terms
+# Response to stress
+genes <- c("Nr4a1", "Nfkbid", "Tnf", "Parp10", "Pbxip1", "Ier3", "Hnrnpa0", "Ccrl2",
+           "Nfkbiz", "Tap1", "Casp4", "Ccl4", "Uba7", "Epha2", "Scrib", "Atf3", "Tyk2",
+           "H2-M3", "Nlrp1b", "G3bp1", "Wdfy1", "Mthfr", "mt-Nd6", "Plk3", "Ccl3",
+           "Uvssa", "Nbr1", "Neurl3", "Fbh1", "Ier5", "Pot1b", "Alkbh1", "Dhx58", "Baz1b",
+           "Trim34a", "Map3k8", "Map3k7", "Chmp4b", "Gnl1", "Plekhn1", "Ywhaz", "Bcl7a",
+           "Trim12a", "Osm", "Slc2a8", "Itga5", "Morf4l2", "Nmi", "Nlrp3", "Ggt5", "Il1a",
+           "Zbtb7b", "Clcf1", "Itgb3")
+VlnPlot(SCT, features = genes, stack = TRUE)
+
+d6_s <- d6[d6$gene %in% genes, ]
+d30_s <- d30[d30$gene %in% genes, ]
+d100_s <- d100[d100$gene %in% genes, ]
+merge_s=rbind(d6_s, d30_s, d100_s)
+
+ggplot(merge_s, aes(
+  x = dpi, 
+  y = gene, 
+  size = pct.1, 
+  fill = avg_log2FC)
+) +
+  geom_point(shape = 21, color = "black", stroke = 0.25) +
+  scale_fill_gradient2(low = "#000000", mid = "#F6DED8", high = "#C02727", midpoint = 1, limits = c(0.7, 2.7) ) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.major.y = element_blank())
+
+# Positive regulation of cytokine production
+genes <- c("Tnf", "Cd83", "Casp4", "Ccl4", "Scrib", "Tyk2", "H2-M3", "Nlrp1b",
+           "G3bp1", "Ccl3", "Dhx58", "Map3k7", "Nlrp3", "Il1a", "Zbtb7b")
+VlnPlot(SCT, features = genes, stack = TRUE)
+
+d6_c <- d6[d6$gene %in% genes, ]
+d30_c <- d30[d30$gene %in% genes, ]
+d100_c <- d100[d100$gene %in% genes, ]
+merge_c=rbind(d6_c, d30_c, d100_c)
+
+ggplot(merge_c, aes(
+  x = dpi, 
+  y = gene, 
+  size = pct.1, 
+  fill = avg_log2FC)
+) +
+  geom_point(shape = 21, color = "black", stroke = 0.25) +
+  scale_fill_gradient2(low = "#000000", mid = "#F6DED8", high = "#C02727", midpoint = 1, limits = c(0.7, 2.7) ) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.major.y = element_blank())
+
+# Compare transcriptional dysregulation across subclusters
+subclusters <- unique(SCT$reassigned_clusters)
+# For each subcluster: aggregate expression by dpi, run PCA, compute distance from dpi 0
+dist_results <- map_dfr(subclusters, function(cl) {
+  sub <- subset(SCT, reassigned_clusters == cl)
+  # Aggregate (sum) counts per dpi
+  pb_cl <- AggregateExpression(sub, group.by = "dpi", return.seurat = TRUE,
+                               assays = "SCT", verbose = FALSE)
+  # Use scale.data for PCA
+  mat <- GetAssayData(pb_cl, assay = "SCT", layer = "scale.data")
+  # Need at least 2 dpi to run PCA
+  if (ncol(mat) < 2) return(NULL)
+  pca <- prcomp(t(mat), scale. = FALSE, center = TRUE)
+  pc_df <- as.data.frame(pca$x) |>
+    rownames_to_column("sample") |>
+    mutate(dpi = str_remove(sample, "^g"))
+  origin <- pc_df |> filter(dpi == "0") |> select(starts_with("PC")) |> as.numeric()
+  pc_df |>
+    rowwise() |>
+    mutate(
+      subcluster = cl,
+      dist_from_0 = sqrt(sum((c_across(starts_with("PC")) - origin)^2))
+    ) |>
+    ungroup() |>
+    select(subcluster, dpi, dist_from_0)
+})
+
+dist_results <- dist_results |>
+  filter(dpi != "0") |>
+  mutate(dpi = factor(dpi, levels = c("6", "30", "100")))
+
+ggplot(dist_results, aes(x = dpi, y = dist_from_0, color = subcluster, group = subcluster)) +
+  geom_line(linewidth = 0.8) +
+  geom_point(size = 2.5) +
+  labs(
+    x = "Days post-infection",
+    y = "Transcriptional distance from dpi 0\n(Euclidean distance in PC space)",
+    color = "Subcluster",
+    title = "Transcriptional dysregulation by subcluster"
+  ) +
+  theme_minimal(base_size = 12)
