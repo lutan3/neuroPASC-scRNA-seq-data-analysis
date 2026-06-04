@@ -1,0 +1,95 @@
+library(Seurat)
+library(monocle3)
+library(ggplot2)
+library(ggpubr)
+
+load("R_data/Ptprc_or_Itgam_0/final/microglia/reassigned.RData")
+SCT@meta.data$sample_name <- NULL
+counts <- GetAssayData(SCT, layer = "data")
+cell_metadata <- SCT@meta.data
+gene_annotation <- data.frame(gene_short_name = rownames(counts), row.names = rownames(counts))
+
+cds <- new_cell_data_set(counts, cell_metadata = cell_metadata, gene_metadata = gene_annotation)
+
+cds@clusters$UMAP$clusters <- as.factor(colData(cds)$seurat_clusters)
+partition_vector <- factor(rep(1, ncol(cds)), levels = 1)
+names(partition_vector) <- colnames(cds)
+cds@clusters$UMAP$partitions <- partition_vector
+reducedDims(cds)$UMAP <- Embeddings(SCT, "umap")
+
+cds <- learn_graph(cds)
+cds <- order_cells(cds)
+plot_cells(cds,
+           color_cells_by = "pseudotime",
+           label_cell_groups=FALSE,
+           label_leaves=FALSE,
+           label_branch_points=FALSE,
+           graph_label_size=3)
+
+# Plot pseudotime distributions of different samples
+pseudotime_df <- data.frame(pseudotime = pseudotime(cds), sample = colData(cds)$sample)
+
+pseudotime_df$sample <- as.factor(pseudotime_df$sample)
+
+median_labels_sample <- pseudotime_df |>
+  group_by(sample) |>
+  summarise(median_pt = median(pseudotime, na.rm = TRUE))
+
+ggplot(pseudotime_df, aes(x = sample, y = pseudotime, fill = sample)) +
+  geom_violin(trim = FALSE) +
+  geom_boxplot(width = 0.1, outlier.shape = NA) +
+  geom_text(
+    data = median_labels_sample,
+    aes(x = sample, y = median_pt, label = round(median_pt, 2)),
+    vjust = 0.5, size = 3, color = "black", inherit.aes = FALSE
+  ) +
+  theme_minimal() +
+  labs(x = "Sample", y = "Pseudotime") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1))
+
+# Plot pseudotime distributions of different subclusters
+pseudotime_df <- data.frame(
+  pseudotime = pseudotime(cds),
+  subcluster = colData(cds)$reassigned_clusters
+)
+
+pseudotime_df$subcluster <- as.factor(pseudotime_df$subcluster)
+
+ggplot(pseudotime_df, aes(x = subcluster, y = pseudotime, fill = subcluster)) +
+  geom_violin(trim = FALSE) +
+  geom_boxplot(width = 0.1, outlier.shape = NA, fill = "white") +
+  theme_minimal() +
+  labs(x = NULL, y = "Pseudotime") +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none"
+  )
+
+# Reorder subclusters by median pseudotime
+median_order <- pseudotime_df |>
+  group_by(subcluster) |>
+  summarise(median_pt = median(pseudotime, na.rm = TRUE)) |>
+  arrange(median_pt) |>
+  pull(subcluster) |>
+  as.character()
+
+pseudotime_df$subcluster <- factor(pseudotime_df$subcluster, levels = median_order)
+
+median_labels <- pseudotime_df |>
+  group_by(subcluster) |>
+  summarise(median_pt = median(pseudotime, na.rm = TRUE))
+
+ggplot(pseudotime_df, aes(x = subcluster, y = pseudotime, fill = subcluster)) +
+  geom_violin(trim = FALSE) +
+  geom_boxplot(width = 0.1, outlier.shape = NA, fill = "white") +
+  geom_text(
+    data = median_labels,
+    aes(x = subcluster, y = median_pt, label = round(median_pt, 2)),
+    vjust = 0.5, size = 3, color = "black", inherit.aes = FALSE
+  ) +
+  theme_minimal() +
+  labs(x = NULL, y = "Pseudotime") +
+  theme(
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    legend.position = "none"
+  )
