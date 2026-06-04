@@ -1,0 +1,290 @@
+library(tidyverse)
+library(cowplot)
+library(SingleCellExperiment)
+library(Seurat)
+library(tidyverse)
+library(Matrix)
+library(scales)
+library(cowplot)
+library(RCurl)
+library(dplyr)
+library(Matrix.utils)
+library(ggplot2)
+library(dplyr)
+library("reshape2")
+library(pheatmap)
+library(ggforce)
+library(clusterProfiler)
+library(org.Mm.eg.db)
+library(ggcorrplot)
+library(rstatix)
+library(ggpubr)
+library(readxl)
+
+load("R_data/Ptprc_or_Itgam_0/final/decontx_clustering_res.0.6.RData")
+neutro <- subset(reassign, idents = "Neutrophils") # 923
+
+Idents(neutro) <- "seurat_clusters"
+DimPlot(neutro, reduction = "umap", label = TRUE, pt.size = 0.2, alpha = 0.5)
+VlnPlot(neutro, features = c("Ly6g", "Camp", "S100a8", "S100a9", 
+                             "Csf3r", "Cxcr2", "Nlrp3", "Cxcl2", "Il1b"), stack = TRUE)
+
+n_cells <- FetchData(neutro, vars = c("ident", "sample_name")) %>%
+  dplyr::count(ident, sample_name)
+ggplot(n_cells, aes(x=ident, y=n, fill=sample_name)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_text(aes(label=n), vjust = -.2, position=position_dodge(1))
+
+df <- data.frame(
+  group = rep(c("1_mock", "2_6dpi", "3_30dpi", "4_100dpi"), each = 3),
+  subpopulation = rep(c("13", "16", "18"), times = 4),
+  count = c(2.04, 1.45, 0.17, 6.10, 2.65, 0.21, 2.12, 1.53, 1.06, 1.32, 0.55, 0.75)
+)
+ggplot(df, aes(x = group, y = count, fill = subpopulation)) +
+  geom_bar(stat = "identity") +
+  labs(y = "Cell Count", x = "Sample") +
+  theme_minimal()
+
+# Gene module score calculation
+
+# Maturation
+gene_module <- c("Retnlg", "Ccl6", "S100a6", "Clec4d", "Prr13", "Cebpb", "Slpi", "S100a11", "Btg1", 
+                 "Cxcr2", "Fth1", "Grina", "Mmp8", "Fxyd5", "Msrb1", "H2-D1", "Anxa2", "Mmp9", "Ftl1",
+                 "Map1lc3b", "Tmcc1", "Sat1", "Cyp4f18", "Junb", "Mxd1", "Stk17b", "Ypel3", "Selplg",
+                 "Il1f9", "Dusp1", "Slc16a3", "Ccr1", "Rdh12", "Clec4e", "Arg2", "Cd300ld", "Amica1",
+                 "Ctsd", "Gda", "Hacd4", "Timp2", "Fpr1", "Ifi27l2a", "Slc7a11", "Stfa2l1", "Il1b",
+                 "Asprv1", "Cxcl2", "Gm5483", "Ifitm1")
+neutro <- AddModuleScore(neutro, features = list(gene_module), name = "Maturation")
+df <- FetchData(neutro, vars = c("seurat_clusters", "Maturation1"))
+colnames(df) <- c("cluster", "score")
+df$cluster <- as.factor(df$cluster)
+comparisons <- list(c("18", "13"),
+                    c("16", "13"),
+                    c("18", "16"))
+stat_test <- df %>%
+  wilcox_test(score ~ cluster, comparisons = comparisons, paired = FALSE) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_y_position()
+VlnPlot(neutro, features = "Maturation1") +
+  stat_pvalue_manual(stat_test, label = "p.adj", tip.length = 0.01) +
+  ylim(NA, 1.2 * max(FetchData(neutro, "Maturation1")))
+
+# Aging
+gene_module <- c("Sell", "Itgam", "Itga4", "Cxcr4", "Cxcr2",
+                 "Cd47", "Cd24a", "Tlr4", "Icam1", "Itgax")
+neutro <- AddModuleScore(neutro, features = list(gene_module), name = "Aging")
+df <- FetchData(neutro, vars = c("seurat_clusters", "Aging1"))
+colnames(df) <- c("cluster", "score")
+df$cluster <- as.factor(df$cluster)
+comparisons <- list(c("18", "13"),
+                    c("16", "13"),
+                    c("18", "16"))
+stat_test <- df %>%
+  wilcox_test(score ~ cluster, comparisons = comparisons, paired = FALSE) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_y_position()
+VlnPlot(neutro, features = "Aging1") +
+  stat_pvalue_manual(stat_test, label = "p.adj", tip.length = 0.01) +
+  ylim(NA, 1.2 * max(FetchData(neutro, "Aging1")))
+
+# Chemotaxis
+gene_module <- c("C5ar1", "Ccl1", "Ccl11", "Ccl12", "Ccl17", "Ccl19", "Ccl2", "Ccl20",
+                 "Ccl21a", "Ccl21b", "Ccl21c", "Ccl22", "Ccl24", "Ccl25", "Ccl26", "Ccl3",
+                 "Ccl4", "Ccl5", "Ccl6", "Ccl7", "Ccl8", "Ccl9", "Cklf", "Csf3r", "Cx3cl1",
+                 "Cxadr", "Cxcl1", "Cxcl10", "Cxcl13", "Cxcl15", "Cxcl2", "Cxcl3", "Cxcl5",
+                 "Cxcl9", "Cxcr1", "Cxcr2", "Edn3", "Fcer1g", "Fcgr3", "Gbf1", "Gm2564",
+                 "Ifng", "Il17b", "Il1b", "Il1f10", "Il1rn", "Itga1", "Itga9", "Itgam",
+                 "Itgb2", "Lgals3", "Nckap1l", "Pde4b", "Pde4d", "Pf4", "Pla2g1b", "Ppbp",
+                 "Prex1", "Prkca", "S100a8", "S100a9", "Slc37a4", "Spp1", "Syk", "Tgfb2",
+                 "Trem1", "Trem3", "Vav1", "Vav3", "Xcl1")
+neutro <- AddModuleScore(neutro, features = list(gene_module), name = "Chemotaxis")
+df <- FetchData(neutro, vars = c("seurat_clusters", "Chemotaxis1"))
+colnames(df) <- c("cluster", "score")
+df$cluster <- as.factor(df$cluster)
+comparisons <- list(c("18", "13"),
+                    c("16", "13"),
+                    c("18", "16"))
+stat_test <- df %>%
+  wilcox_test(score ~ cluster, comparisons = comparisons, paired = FALSE) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_y_position()
+VlnPlot(neutro, features = "Chemotaxis1") +
+  stat_pvalue_manual(stat_test, label = "p.adj", tip.length = 0.01) +
+  ylim(NA, 1.2 * max(FetchData(neutro, "Chemotaxis1")))
+
+# Specific granules (Cowland and Borregaard, 2016)
+gene_module <- c("Lyz2", "Lcn2", "Cyba", "Cybb", "Ncf1", "Ncf4", "Ltf", "Camp")
+neutro <- AddModuleScore(neutro, features = list(gene_module), name = "Granules")
+df <- FetchData(neutro, vars = c("seurat_clusters", "Granules1"))
+colnames(df) <- c("cluster", "score")
+df$cluster <- as.factor(df$cluster)
+comparisons <- list(c("18", "13"),
+                    c("16", "13"),
+                    c("18", "16"))
+stat_test <- df %>%
+  wilcox_test(score ~ cluster, comparisons = comparisons, paired = FALSE) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_y_position()
+VlnPlot(neutro, features = "Granules1") +
+  stat_pvalue_manual(stat_test, label = "p.adj", tip.length = 0.01) +
+  ylim(NA, 1.4 * max(FetchData(neutro, "Granules1")))
+
+# Gelatinase granules (Cowland and Borregaard, 2016)
+gene_module <- c("Ceacam1", "Mmp8", "Mmp9", "Itgam", "Slc11a1")
+neutro <- AddModuleScore(neutro, features = list(gene_module), name = "Granules")
+df <- FetchData(neutro, vars = c("seurat_clusters", "Granules1"))
+colnames(df) <- c("cluster", "score")
+df$cluster <- as.factor(df$cluster)
+comparisons <- list(c("18", "13"),
+                    c("16", "13"),
+                    c("18", "16"))
+stat_test <- df %>%
+  wilcox_test(score ~ cluster, comparisons = comparisons, paired = FALSE) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_y_position()
+VlnPlot(neutro, features = "Granules1") +
+  stat_pvalue_manual(stat_test, label = "p.adj", tip.length = 0.01) +
+  ylim(NA, 1.4 * max(FetchData(neutro, "Granules1")))
+
+# Azurophil granules (Cowland and Borregaard, 2016)
+gene_module <- c("Hexa", "Prss57", "Prtn3", "Ctsg", "Elane", "Mpo", "Ctsc")
+neutro <- AddModuleScore(neutro, features = list(gene_module), name = "Granules")
+df <- FetchData(neutro, vars = c("seurat_clusters", "Granules1"))
+colnames(df) <- c("cluster", "score")
+df$cluster <- as.factor(df$cluster)
+comparisons <- list(c("18", "13"),
+                    c("16", "13"),
+                    c("18", "16"))
+stat_test <- df %>%
+  wilcox_test(score ~ cluster, comparisons = comparisons, paired = FALSE) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_y_position()
+VlnPlot(neutro, features = "Granules1") +
+  stat_pvalue_manual(stat_test, label = "p.adj", tip.length = 0.01) +
+  ylim(NA, 1.4 * max(FetchData(neutro, "Granules1")))
+
+# Secretory vesicles (Cowland and Borregaard, 2016)
+gene_module <- c("Cd63", "Mme", "Itgam", "Fut4", "Fcgr3", "Cr2", "Cybb",
+                 "Mmp25", "Slc11a2", "Fpr1", "Scamp1", "Vamp2", "Stxbp4", "Cd93", "Cr1l")
+neutro <- AddModuleScore(neutro, features = list(gene_module), name = "Granules")
+df <- FetchData(neutro, vars = c("seurat_clusters", "Granules1"))
+colnames(df) <- c("cluster", "score")
+df$cluster <- as.factor(df$cluster)
+comparisons <- list(c("18", "13"),
+                    c("16", "13"),
+                    c("18", "16"))
+stat_test <- df %>%
+  wilcox_test(score ~ cluster, comparisons = comparisons, paired = FALSE) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_y_position()
+VlnPlot(neutro, features = "Granules1") +
+  stat_pvalue_manual(stat_test, label = "p.adj", tip.length = 0.01) +
+  ylim(NA, 1.4 * max(FetchData(neutro, "Granules1")))
+
+# Single-cell-level DEG analysis of total microglia using Seurat (based on the non-parametric Wilcoxon rank sum test)
+Idents(neutro) <- "dpi"
+d6 <- FindMarkers(neutro, ident.1 = "6", ident.2 = "0", verbose = FALSE)
+deg6_1 <- d6 %>% filter(avg_log2FC >= 1, p_val_adj <= 0.01, pct.1 > 0.2)
+deg6_2 <- d6 %>% filter(avg_log2FC <= -1, p_val_adj <= 0.01, pct.2 > 0.2)
+deg6 <- rbind(deg6_1, deg6_2)
+write.csv(deg6, "R_data/Ptprc_or_Itgam_0/final/neutrophils/neutro_6_seurat.csv")
+
+d30 <- FindMarkers(neutro, ident.1 = "30", ident.2 = "0", verbose = FALSE)
+deg30_1 <- d30 %>% filter(avg_log2FC >= 1, p_val_adj <= 0.01, pct.1 > 0.2)
+deg30_2 <- d30 %>% filter(avg_log2FC <= -1, p_val_adj <= 0.01, pct.2 > 0.2)
+deg30 <- rbind(deg30_1, deg30_2)
+write.csv(deg30, "R_data/Ptprc_or_Itgam_0/final/neutrophils/neutro_30_seurat.csv")
+
+d100 <- FindMarkers(neutro, ident.1 = "100", ident.2 = "0", verbose = FALSE)
+deg100_1 <- d100 %>% filter(avg_log2FC >= 1, p_val_adj <= 0.01, pct.1 > 0.2)
+deg100_2 <- d100 %>% filter(avg_log2FC <= -1, p_val_adj <= 0.01, pct.2 > 0.2)
+deg100 <- rbind(deg100_1, deg100_2)
+write.csv(deg100, "R_data/Ptprc_or_Itgam_0/final/neutrophils/neutro_100_seurat.csv")
+
+# Plot gProfiler results
+gprofiler <- read_excel("R_data/Ptprc_or_Itgam_0/final/neutrophils/6_gProfiler.xlsx")
+gprofiler <- gprofiler[gprofiler$source == "GO:BP", ]
+
+selected_terms <- c("innate immune response", 
+                    "response to virus",
+                    "defense response to virus",
+                    "immune system process",
+                    "activation of innate immune response",
+                    "response to cytokine",
+                    "activation of immune response",
+                    "cellular response to interferon-beta",
+                    "interferon-mediated signaling pathway",
+                    "pattern recognition receptor signaling pathway",
+                    "negative regulation of viral process",
+                    "type I interferon production",
+                    "cellular response to type II interferon",
+                    "regulation of inflammatory response",
+                    "pyroptotic inflammatory response",
+                    "regulation of interferon-alpha production",
+                    "MDA-5 signaling pathway",
+                    "inflammasome-mediated signaling pathway")
+filtered_terms <- gprofiler %>% filter(term_name %in% selected_terms)
+filtered_terms <- filtered_terms %>% mutate(gene_ratio = intersection_size / term_size)
+
+ggplot(filtered_terms, aes(x = gene_ratio, 
+                           y = reorder(term_name, gene_ratio), 
+                           size = intersection_size, 
+                           color = negative_log10_of_adjusted_p_value)) +
+  geom_point() +
+  scale_color_gradient(low = "blue", high = "red") +
+  labs(x = "Gene Ratio", y = NULL, size = "Gene Count", color = "-log10(FDR)", title = "Selected GO:BP Pathways Enriched") +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.major.y = element_blank())
+
+ggplot(filtered_terms, aes(x = reorder(term_name, negative_log10_of_adjusted_p_value), y = negative_log10_of_adjusted_p_value, fill = source)) +
+  geom_bar(stat = "identity") +
+  coord_flip() +
+  labs(x = "Term", y = "-log10(FDR)") +
+  theme_minimal()
+
+# Response to virus
+genes <- c("Oasl2","Oas3","Ifi27l2a","Oas2","Irf7","Isg15",
+           "Ddx60","Rsad2","Oas1a","Oasl1","Zbp1","Dtx3l",
+           "Slfn8","Sertad3","Ifit1","Il1b","Usp18",
+           "Rb1cc1","Nlrp3")
+VlnPlot(neutro, features = genes, stack = TRUE)
+
+d6$gene=row.names(d6)
+d6$dpi="1_6dpi"
+d30$gene=row.names(d30)
+d30$dpi="2_30dpi"
+d100$gene=row.names(d100)
+d100$dpi="3_100dpi"
+
+d6_d <- d6[d6$gene %in% genes, ]
+d30_d <- d30[d30$gene %in% genes, ]
+d100_d <- d100[d100$gene %in% genes, ]
+merge_d=rbind(d6_d, d30_d, d100_d)
+
+ggplot(merge_d, aes(
+  x = dpi, 
+  y = gene, 
+  size = pct.1, 
+  fill = avg_log2FC)
+) +
+  geom_point(shape = 21, color = "black", stroke = 0.25) +
+  scale_fill_gradient2(low = "#000000", mid = "#F6DED8", high = "#C02727", midpoint = 1, limits = c(-1.5, 3.8) ) +
+  theme_minimal(base_size = 12) +
+  theme(panel.grid.major.y = element_blank())
+
+# Specific genes
+Idents(neutro) <- "dpi"
+custom_order <- c("0", "6", "30", "100")
+Idents(neutro) <- factor(Idents(neutro), levels = custom_order)
+
+df <- FetchData(neutro, vars = c("dpi", "Casp1"))
+colnames(df) <- c("dpi", "expr")
+df$dpi <- as.factor(df$dpi)
+comparisons <- list(c("6", "0"), c("30", "0"), c("100", "0"))
+stat_test <- df %>%
+  wilcox_test(expr ~ dpi, comparisons = comparisons, paired = FALSE) %>%
+  adjust_pvalue(method = "BH") %>%
+  add_y_position() 
+VlnPlot(neutro, features = "Casp1") +
+  stat_pvalue_manual(stat_test, label = "p.adj", tip.length = 0.01) +
+  ylim(NA, 1.2 * max(FetchData(neutro, "Casp1")))
