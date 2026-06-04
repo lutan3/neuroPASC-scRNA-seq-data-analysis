@@ -1,0 +1,135 @@
+library(tidyverse)
+library(RCurl)
+library(cowplot)
+library(Seurat)
+library(SingleCellExperiment)
+library(celda)
+library(decontX)
+
+load("R_data/Ptprc_or_Itgam_0/Ptprc_Itgam_0_final.RData")
+
+# Run SCTransform
+options(future.globals.maxSize = 4000 * 1024^2)
+SCT <- SCTransform(Ptprc_Itgam_0, vst.flavor = "v2", vars.to.regress = c("S.Score", "G2M.Score", "mitoRatio"))
+
+# Find clusters
+SCT <- RunPCA(object = SCT)
+SCT <- FindNeighbors(object = SCT, dims = 1:40)
+SCT <- FindClusters(object = SCT, resolution = 0.6)
+SCT <- RunUMAP(object = SCT, dims = 1:40)
+DimPlot(object = SCT, reduction = "umap", label = TRUE, pt.size = 0.2, alpha = 0.5)
+
+# Run decontX using Seurat Clusters without supplying the background
+sce <- as.SingleCellExperiment(SCT)
+sce$decontX_clusters <- SCT$SCT_snn_res.0.6
+sce <- decontX(sce, z = sce$decontX_clusters)
+
+metadata(sce)$decontX$estimates$all_cells$delta # 1.7662537 0.3297409
+
+# Plot contamination 
+plotDecontXContamination(sce)
+
+SCT$decontX_contamination <- colData(sce)$decontX_contamination
+VlnPlot(SCT, features = "decontX_contamination")
+
+# Barplot of markers detected in cell clusters
+markers <- list(T.cells = "Cd3e",
+                B.cells = "Cd19",
+                microglia = c("P2ry12", "Sall1", "Tmem119"),
+                endothelial.cells = "Pecam1",
+                astrocytes = "Slc1a2")
+plotDecontXMarkerPercentage(sce, markers = markers, assayName = "counts")
+plotDecontXMarkerPercentage(sce, markers = markers, assayName = "decontXcounts")
+
+# Update clean matrix to the existing Seurat object=
+clean_counts <- sce@assays@data@listData$decontXcounts
+SCT[["decontx"]] <- CreateAssayObject(counts = clean_counts)
+
+# Remove clusters of high contamination
+SCT <- subset(SCT, idents = c(9,15,20,21,23,24,25), invert = TRUE)
+
+# Perform clustering based on the clean matrix
+DefaultAssay(SCT) <- "decontx"
+SCT <- RenameAssays(SCT, RNA = "original_RNA")
+SCT[["SCT"]] <- NULL
+columns_to_remove <- grep("SCT_snn_res", colnames(SCT@meta.data), value = TRUE)
+SCT@meta.data <- SCT@meta.data[, !colnames(SCT@meta.data) %in% columns_to_remove]
+
+subset <- subset(SCT, features=rownames(SCT)[rowSums(SCT@assays$decontx@counts > 0) >= 10])
+
+subset[["RNA"]] <- subset[["decontx"]]
+DefaultAssay(subset) <- "RNA"
+subset[["decontx"]] <- NULL
+
+options(future.globals.maxSize = 4000 * 1024^2)
+SCT <- SCTransform(subset, vst.flavor = "v2", vars.to.regress = c("S.Score", "G2M.Score", "mitoRatio"))
+SCT <- RunPCA(object = SCT)
+SCT <- FindNeighbors(object = SCT, dims = 1:40)
+SCT <- FindClusters(object = SCT, resolution = 0.6)
+SCT <- RunUMAP(object = SCT, dims = 1:40)
+DimPlot(object = SCT, reduction = "umap", label = TRUE, pt.size = 0.2, alpha = 0.5)
+
+# Reassign cell type names
+reassign <- RenameIdents(SCT, "0" = "Microglia", "1" = "Microglia",
+                         "2" = "Microglia", "3" = "Microglia", "4" = "Microglia",
+                         "5" = "Microglia", "6" = "Microglia", "7" = "Microglia",
+                         "8" = "MHCII hi BAMs", "9" = "MHCII lo BAMs", "10" = "T cells",
+                         "11" = "B cells", "12" = "Monocytes", "13" = "Neutrophils",
+                         "14" = "DCs", "15" = "NK cells", "16" = "Neutrophils",
+                         "17" = "Microglia", "18" = "Neutrophils", "19" = "ILCs",
+                         "20" = "Microglia", "21" = "Mast cells")
+DimPlot(reassign, reduction = "umap", label = TRUE, pt.size = 0.2)
+save(reassign, file = "R_data/Ptprc_or_Itgam_0/final/decontx_clustering_res.0.6.RData")
+
+# Marker genes for each cell type
+d <- FindMarkers(reassign, ident.1 = "B cells", verbose = FALSE)
+d_1 <- d %>% filter(avg_log2FC >= 1, p_val_adj <= 0.01, pct.1 >= 0.2)
+write.csv(d_1, file = "R_data/Ptprc_or_Itgam_0/final/B cells_markers.csv", row.names = TRUE)
+
+# DotPlot and heatmap for cell type identification
+features <- c("Sall1", "Sparc", "P2ry12", "C1qc", "Mrc1", "Cd163", "H2-Aa",  
+              "Tdtomato", "S100a8", "Cxcr2", "Itgal", "Plac8", "Adgre4", "Itgax", "Cd209a",
+              "Ncr1", "Klrb1c", "Gata3", "Il2ra", "Tpsab1", "Cpa3",
+              "Cd3e", "Trac", "Cd19", "Cd79a")
+
+levels(Idents(reassign))
+custom_order <- c("Microglia", "MHCII lo BAMs", "MHCII hi BAMs", 
+                  "Neutrophils", "Monocytes", "DCs", 
+                  "NK cells", "ILCs", "Mast cells",
+                  "T cells", "B cells")
+Idents(reassign) <- factor(Idents(reassign), levels = custom_order)
+
+DotPlot(reassign, features = features) + RotatedAxis()
+DoHeatmap(subset(reassign, downsample = 100), features = features, size = 1) 
+
+# Count in each cell type by sample
+n_cells <- FetchData(reassign, vars = c("ident", "sample_name")) %>%
+  dplyr::count(ident, sample_name)
+ggplot(n_cells, aes(x=ident, y=n, fill=sample_name)) +
+  geom_bar(position=position_dodge(), stat="identity") +
+  geom_text(aes(label=n), vjust = -.2, position=position_dodge(1))
+
+# Percent stacked barchart
+data <- read.csv("R_data/Ptprc_or_Itgam_0/final/cell.count.csv")
+data <- data %>% group_by(Groups) %>% mutate(Proportion=Values/sum(Values), Percentage=paste0(round(Proportion * 100, 1), "%"))
+ggplot(data, aes(fill = Clusters, y = Proportion, x = Groups)) +
+  geom_bar(position = "fill", stat = "identity") +
+  geom_text(aes(label = Percentage), position = position_fill(vjust = 0.5), color = "white", size = 4) +
+  scale_y_continuous(labels = scales::percent) +
+  labs(title = "Percentage Stacked Bar Chart with Percentage Labels", x = "Groups", y = "Percentage") +
+  theme_minimal()
+
+Idents(reassign) <- "dpi"
+custom_order <- c("0", "6", "30", "100")
+Idents(reassign) <- factor(Idents(reassign), levels = custom_order)
+
+VlnPlot(reassign, features = c("nCount_RNA", "nFeature_RNA", "mitoRatio", 
+                               "log10GenesPerUMI", "S.Score", "G2M.Score"), 
+        stack = TRUE)
+VlnPlot(reassign, features = "nFeature_RNA")
+VlnPlot(reassign, features = "mitoRatio")
+VlnPlot(reassign, features = "log10GenesPerUMI")
+VlnPlot(reassign, features = "S.Score")
+VlnPlot(reassign, features = "G2M.Score")
+
+DimPlot(reassign, group.by = "dpi")
